@@ -2962,6 +2962,7 @@ export async function loadCliConfig(
     ideMode,
     chatCompression: settings.model?.chatCompression,
     autoCompactThreshold: settings.context?.autoCompactThreshold,
+    autoCompactionEnabled: settings.context?.autoCompaction?.enabled,
     folderTrust,
     interactive,
     trustedFolder,

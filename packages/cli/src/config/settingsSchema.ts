@@ -2507,12 +2507,33 @@ const SETTINGS_SCHEMA = {
         requiresRestart: false,
         default: undefined as number | undefined,
         description:
-          'Target fraction of the context window at which auto-compaction triggers (greater than 0, up to 1). Acts as a ceiling on the trigger: on large windows this is the effective trigger (~85%); on smaller windows compaction may fire earlier to leave room to summarize. Default is 0.85 (85%).',
+          'Target fraction of the context window at which auto-compaction triggers (greater than 0, up to 1). Acts as a ceiling on the trigger: on large windows this is the effective trigger (~85%); on smaller windows compaction may fire earlier to leave room to summarize. Default is 0.85 (85%). Ignored when context.autoCompaction.enabled is false.',
         showInDialog: false,
         jsonSchemaOverride: {
           type: 'number',
           minimum: 0.01,
           maximum: 1,
+        },
+      },
+      autoCompaction: {
+        type: 'object',
+        label: 'Auto-Compaction',
+        category: 'Context',
+        requiresRestart: false,
+        default: {},
+        description: 'Settings for automatic context compaction.',
+        showInDialog: false,
+        properties: {
+          enabled: {
+            type: 'boolean',
+            label: 'Enable Auto-Compaction',
+            category: 'Context',
+            requiresRestart: false,
+            default: true,
+            description:
+              'Whether Qwen Code compacts the conversation automatically as it nears the context window. When false, neither the auto tier nor the hard tier fires, autoCompactThreshold is ignored, and oversized tool results are not shortened to stay under the auto tier. Manual /compress still works. If the provider rejects a request as too long, Qwen Code still compacts once and retries.',
+            showInDialog: false,
+          },
         },
       },
     },

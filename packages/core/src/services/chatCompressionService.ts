@@ -668,6 +668,23 @@ export class ChatCompressionService {
     }
 
     if (!force) {
+      // `context.autoCompaction.enabled: false` turns off every unforced
+      // trigger: the auto tier and the screenshot-overflow trigger below.
+      // Forced callers (manual /compress, reactive overflow recovery) are not
+      // affected.
+      if (config.isAutoCompactionEnabled?.() === false) {
+        debugLogger.debug(
+          '[compaction] cheap-gate NOOP: auto-compaction disabled',
+        );
+        return {
+          newHistory: null,
+          info: {
+            originalTokenCount,
+            newTokenCount: originalTokenCount,
+            compressionStatus: CompressionStatus.NOOP,
+          },
+        };
+      }
       // Thresholds run against the FULL window: the send-path output clamp
       // guarantees `prompt + max_tokens ≤ window`, so no output budget needs
       // to be reserved out of the window here (this replaced the

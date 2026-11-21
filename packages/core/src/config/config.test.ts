@@ -11977,6 +11977,27 @@ describe('explicit folder trust for repository execution', () => {
   });
 });
 
+describe('isAutoCompactionEnabled', () => {
+  it('defaults to true', () => {
+    expect(new Config(MINIMAL_PARAMS).isAutoCompactionEnabled()).toBe(true);
+  });
+
+  it('is false only when autoCompactionEnabled is false', () => {
+    expect(
+      new Config({
+        ...MINIMAL_PARAMS,
+        autoCompactionEnabled: false,
+      }).isAutoCompactionEnabled(),
+    ).toBe(false);
+    expect(
+      new Config({
+        ...MINIMAL_PARAMS,
+        autoCompactionEnabled: true,
+      }).isAutoCompactionEnabled(),
+    ).toBe(true);
+  });
+});
+
 describe('setApprovalMode with folder trust', () => {
   const baseParams = MINIMAL_PARAMS;
   /** A Config whose folder trust decision is pinned to `trusted`. */

@@ -4090,7 +4090,13 @@ export class LlmChat {
         // response fits, so nothing needs to be pre-reserved for it.
         const effectiveTokens = estimatePendingPrompt(userContent);
         const isHardTier = effectiveTokens >= hard;
+        // `context.autoCompaction.enabled: false` also turns off the hard-tier
+        // rescue. An overflow then reaches the provider, and the reactive
+        // recovery below still handles a context-length rejection.
+        const autoCompactionEnabled =
+          this.config.isAutoCompactionEnabled?.() !== false;
         const shouldForceFromHard =
+          autoCompactionEnabled &&
           !exactRoute &&
           isHardTier &&
           this.hardRescueFailureCount < MAX_CONSECUTIVE_FAILURES;
@@ -4137,6 +4143,10 @@ export class LlmChat {
         if (shouldForceFromHard) {
           debugLogger.warn(
             `[compaction] hard-tier rescue triggered: prompt_id=${prompt_id}, effectiveTokens=${effectiveTokens}, hard=${hard}, hardRescueAttempt=${this.hardRescueFailureCount + 1}, consecutiveFailures=${this.consecutiveFailures}.`,
+          );
+        } else if (isHardTier && !exactRoute && !autoCompactionEnabled) {
+          debugLogger.debug(
+            `[compaction] hard-tier rescue skipped: auto-compaction disabled. prompt_id=${prompt_id}, effectiveTokens=${effectiveTokens}, hard=${hard}.`,
           );
         } else if (isHardTier && !exactRoute) {
           debugLogger.warn(
@@ -6883,6 +6893,11 @@ export class LlmChat {
     const anchor = this.toolBudgetUsageAnchor;
     const baseChars = this.config.getTruncateToolOutputThreshold?.();
     if (
+      // This budget shortens tool results so the next prompt stays under the
+      // auto tier. With auto-compaction off there is no auto tier to protect,
+      // and the cut would be a silent truncation. An oversized result goes to
+      // the provider, and reactive overflow recovery handles a rejection.
+      this.config.isAutoCompactionEnabled?.() === false ||
       !anchor ||
       anchor.routeKey !== routeKey ||
       !userContent.parts?.some((part) => part.functionResponse) ||

@@ -4923,6 +4923,17 @@ describe('LlmChat', async () => {
       });
     });
 
+    it('keeps reactive overflow recovery when auto-compaction is disabled', async () => {
+      mockConfig.isAutoCompactionEnabled = () => false;
+      const compressSpy = reactiveCompaction(135_000);
+      mockRequests(new Error('Context length exceeded'), textStream('ok'));
+      await sendCollect('hi', 'p-reactive-disabled');
+      expectStreamCalls(2);
+      expect(compressSpy).toHaveBeenCalledTimes(2);
+      expect(compressSpy.mock.calls[0][1].force).toBe(false);
+      expect(compressSpy.mock.calls[1][1].force).toBe(true);
+    });
+
     it('keeps a catalog-only overflow reseed out of user and fork turn counts', async () => {
       mockConfig.getAutoMemoryContext = () => 'OVERFLOW_CATALOG_SENTINEL';
       const compacted = await composePostCompactHistory([], 'Summary.');
@@ -5648,6 +5659,19 @@ describe('LlmChat', async () => {
         ...summaryAck(),
         { role: 'user', parts: [{ text: userMessage }] },
       ]);
+    });
+
+    it('does not force compaction past the hard threshold when auto-compaction is disabled', async () => {
+      mockConfig.isAutoCompactionEnabled = () => false;
+      const compressSpy = mockCompress(noop());
+      mockStream(textStream('sent without rescue'));
+      chat.setLastPromptTokenCount(176_999);
+      await sendDrain('next message', 'prompt-id-hard-disabled');
+      expect(compressSpy).not.toHaveBeenCalled();
+      expectStreamCalls(1);
+      expect(mockDebugLoggerWarn).not.toHaveBeenCalledWith(
+        expect.stringContaining('hard-tier rescue'),
+      );
     });
 
     it('records only the synthetic prefix after hard rescue preserves an operation', async () => {
@@ -16640,6 +16664,13 @@ describe('LlmChat', async () => {
       );
       await sendDrain([result()], 'second');
       expect(resultChars(2)).toBe(20_000);
+    });
+
+    it('leaves results alone when auto-compaction is disabled', async () => {
+      mockConfig.isAutoCompactionEnabled = () => false;
+      await reportUsage(NEAR_AUTO);
+      await sendDrain([result()], 'second');
+      expect(resultChars(1)).toBe(20_000);
     });
 
     it('leaves results alone when the session is far from auto-compaction', async () => {

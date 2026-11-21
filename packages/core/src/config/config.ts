@@ -1639,6 +1639,12 @@ export interface ConfigParameters {
   chatRecording?: boolean;
   chatCompression?: ChatCompressionSettings;
   autoCompactThreshold?: number;
+  /**
+   * `false` turns off automatic compaction (auto tier, hard-tier rescue and
+   * the send-time tool-output pressure budget). Manual `/compress` and the
+   * reactive overflow recovery stay on. Defaults to `true`.
+   */
+  autoCompactionEnabled?: boolean;
   interactive?: boolean;
   trustedFolder?: boolean;
   /**
@@ -3382,6 +3388,7 @@ export class Config {
   private readonly importFormat: 'tree' | 'flat';
   private readonly chatCompression: ChatCompressionSettings | undefined;
   private readonly autoCompactThreshold: number | undefined;
+  private readonly autoCompactionEnabled: boolean;
   private readonly interactive: boolean;
   private readonly trustedFolder: boolean | undefined;
   private readonly trustFileDecisionBelowIdeRoot:
@@ -3849,6 +3856,7 @@ export class Config {
     this.importFormat = params.importFormat ?? 'tree';
     this.chatCompression = params.chatCompression;
     this.autoCompactThreshold = params.autoCompactThreshold;
+    this.autoCompactionEnabled = params.autoCompactionEnabled !== false;
     this.interactive = params.interactive ?? false;
     this.trustedFolder = params.trustedFolder;
     this.trustFileDecisionBelowIdeRoot = params.trustFileDecisionBelowIdeRoot;
@@ -12627,6 +12635,15 @@ export class Config {
 
   getChatCompression(): ChatCompressionSettings | undefined {
     return this.chatCompression;
+  }
+
+  /**
+   * Whether automatic compaction may run. When `false`, the auto tier, the
+   * hard-tier rescue and the send-time tool-output pressure budget are off;
+   * manual `/compress` and reactive overflow recovery are unaffected.
+   */
+  isAutoCompactionEnabled(): boolean {
+    return this.autoCompactionEnabled;
   }
 
   getAutoCompactThreshold(): number | undefined {

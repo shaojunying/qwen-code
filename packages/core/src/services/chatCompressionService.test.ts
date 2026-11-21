@@ -2967,6 +2967,52 @@ describe('ChatCompressionService.compress cheap-gate uses computeThresholds.auto
     expectGate(false, 32_000, 20_000));
 });
 
+describe('ChatCompressionService.compress with auto-compaction disabled', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  const disabledConfig = (o: { threshold?: number } = {}) =>
+    fakeConfig({
+      contextWindowSize: 200_000,
+      sessionStart: true,
+      threshold: o.threshold,
+      extra: { isAutoCompactionEnabled: () => false },
+    });
+
+  it('NOOPs an unforced call far above the auto and hard tiers', async () => {
+    const spy = spySideQuery(...SNAPSHOT_SUMMARY);
+    const result = await compressWith(fakeChat(msgs(2)), disabledConfig(), {
+      force: false,
+      originalTokenCount: 199_000,
+    });
+    expectNoNewHistory(result, CompressionStatus.NOOP);
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('ignores autoCompactThreshold', async () => {
+    const spy = spySideQuery(...SNAPSHOT_SUMMARY);
+    const result = await compressWith(
+      fakeChat(msgs(2)),
+      disabledConfig({ threshold: 0.1 }),
+      { force: false, originalTokenCount: 50_000 },
+    );
+    expectNoNewHistory(result, CompressionStatus.NOOP);
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('still compresses a forced (manual /compress) call', async () => {
+    const spy = spySideQuery(...SNAPSHOT_SUMMARY);
+    const result = await compressWith(fakeChat(msgs(4)), disabledConfig(), {
+      force: true,
+      originalTokenCount: 50_000,
+    });
+    // The forced call passes the gate and reaches the summary side-query.
+    expect(spy).toHaveBeenCalled();
+    expect(result.info.compressionStatus).not.toBe(CompressionStatus.NOOP);
+  });
+});
+
 describe('ChatCompressionService.compress cheap-gate runs against the full window', () => {
   afterEach(() => {
     vi.restoreAllMocks();

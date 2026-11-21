@@ -1205,7 +1205,18 @@
           "type": "number",
           "minimum": 0.01,
           "maximum": 1,
-          "description": "Target fraction of the context window at which auto-compaction triggers (greater than 0, up to 1). Acts as a ceiling on the trigger: on large windows this is the effective trigger (~85%); on smaller windows compaction may fire earlier to leave room to summarize. Default is 0.85 (85%)."
+          "description": "Target fraction of the context window at which auto-compaction triggers (greater than 0, up to 1). Acts as a ceiling on the trigger: on large windows this is the effective trigger (~85%); on smaller windows compaction may fire earlier to leave room to summarize. Default is 0.85 (85%). Ignored when context.autoCompaction.enabled is false."
+        },
+        "autoCompaction": {
+          "description": "Settings for automatic context compaction.",
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "description": "Whether Qwen Code compacts the conversation automatically as it nears the context window. When false, neither the auto tier nor the hard tier fires, autoCompactThreshold is ignored, and oversized tool results are not shortened to stay under the auto tier. Manual /compress still works. If the provider rejects a request as too long, Qwen Code still compacts once and retries.",
+              "type": "boolean",
+              "default": true
+            }
+          }
         }
       }
     },

@@ -12,6 +12,7 @@ import {
   formatQuotaExhaustedMessage,
 } from './quotaErrorDetection.js';
 import { createDebugLogger } from './debugLogger.js';
+import { isContextLengthExceededError } from './contextLengthError.js';
 import { getErrorStatus } from './errors.js';
 import { getRetryAfterDelayMs, getRetryDelayMs } from './retryPolicy.js';
 import {
@@ -118,6 +119,11 @@ function defaultShouldRetry(
 ): boolean {
   if (error instanceof ResponsesHttpError) {
     return error.shouldRetry(extraRetryErrorCodes);
+  }
+  // A context overflow can arrive with a 5xx status (e.g. HTTP 503 "Context
+  // length exceeded"). Re-sending the same request cannot shrink it.
+  if (isContextLengthExceededError(error)) {
+    return false;
   }
   const status = getErrorStatus(error);
   if (status !== undefined && status >= 500 && status < 600) {

@@ -4888,6 +4888,41 @@ describe('LlmChat', async () => {
       expect(compressSpy.mock.calls[2][1].consecutiveFailures).toBe(0);
     });
 
+    describe('context overflow reported with a 5xx status', () => {
+      const overflow503 = () =>
+        Object.assign(new Error('Context length exceeded'), { status: 503 });
+      const rateLimitRetries = (events: StreamEvent[]) =>
+        eventsOfType(events, StreamEventType.RETRY).filter(
+          (event) => (event as { retryInfo?: unknown }).retryInfo !== undefined,
+        );
+
+      it('status-less "Context length exceeded" goes straight to reactive compression', async () => {
+        const compressSpy = reactiveCompaction(135_000);
+        mockRequests(new Error('Context length exceeded'), textStream('ok'));
+        const events = await sendCollect('hi', 'p-12597-no-status');
+        expectStreamCalls(2);
+        expect(rateLimitRetries(events)).toHaveLength(0);
+        expect(compressSpy).toHaveBeenCalledTimes(2);
+        expect(compressSpy.mock.calls[1][1].force).toBe(true);
+      });
+
+      it('503 + "Context length exceeded" reaches reactive compression without rate-limit retries', async () => {
+        mockGeneratorConfig({
+          contextWindowSize: 200_000,
+          maxRetries: 2,
+          retryInitialDelayMs: 1,
+          retryMaxDelayMs: 1,
+        });
+        const compressSpy = reactiveCompaction(135_000);
+        mockRequests(overflow503(), textStream('ok'));
+        const events = await sendCollect('hi', 'p-12597-503');
+        expect(rateLimitRetries(events)).toHaveLength(0);
+        expectStreamCalls(2);
+        expect(compressSpy).toHaveBeenCalledTimes(2);
+        expect(compressSpy.mock.calls[1][1].force).toBe(true);
+      });
+    });
+
     it('keeps a catalog-only overflow reseed out of user and fork turn counts', async () => {
       mockConfig.getAutoMemoryContext = () => 'OVERFLOW_CATALOG_SENTINEL';
       const compacted = await composePostCompactHistory([], 'Summary.');

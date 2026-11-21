@@ -177,7 +177,10 @@ import {
   TOOL_LOOP_SKIPPED_MESSAGE,
   TOOL_LOOP_SKIPPED_METADATA,
 } from './turn.js';
-import { getContextLengthExceededInfo } from '../utils/contextLengthError.js';
+import {
+  getContextLengthExceededInfo,
+  isContextLengthExceededError,
+} from '../utils/contextLengthError.js';
 import {
   getRequestPayloadTooLargeInfo,
   REQUEST_PAYLOAD_TOO_LARGE_NOOP_MESSAGE,
@@ -4794,7 +4797,13 @@ export class LlmChat {
             ) {
               throw error;
             }
-            const isRateLimit = isRateLimitError(error, extraRetryErrorCodes);
+            // Some backends report a context overflow with a transient-looking
+            // status (e.g. HTTP 503 "Context length exceeded"). Re-sending the
+            // same request cannot shrink it, so it goes to the reactive
+            // compaction path below instead of the rate-limit retry ladder.
+            const isRateLimit =
+              isRateLimitError(error, extraRetryErrorCodes) &&
+              !isContextLengthExceededError(error);
             if (isRateLimit) {
               const details = getRateLimitErrorDetails(error);
               // The classifier is observation-only here; stream retry control
@@ -6426,6 +6435,9 @@ export class LlmChat {
           if (isSchemaDepthError(error.message)) return false;
           if (isInvalidArgumentError(error.message)) return false;
         }
+        // A context overflow can arrive with a 5xx status; retrying the same
+        // oversized request cannot succeed.
+        if (isContextLengthExceededError(error)) return false;
 
         const status = getErrorStatus(error);
         if (status === 400) {

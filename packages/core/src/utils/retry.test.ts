@@ -612,6 +612,47 @@ describe('isUnattendedMode', () => {
   });
 });
 
+describe('retryWithBackoff - context overflow with a 5xx status', () => {
+  useRetryTestEnv();
+
+  it.each([
+    ['503 "Context length exceeded"', 503, 'Context length exceeded'],
+    [
+      '500 "maximum context length"',
+      500,
+      "This model's maximum context length is 128000 tokens.",
+    ],
+  ])('does not retry %s', async (_title, status, message) => {
+    const fn = vi.fn().mockRejectedValue(httpError(message, status));
+    await expect(
+      runRetry(fn, { maxAttempts: 3, initialDelayMs: 10 }),
+    ).rejects.toThrow(message);
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+
+  it('still retries a plain 503', async () => {
+    const fn = failing(2, () => httpError('Service Unavailable', 503));
+    expect(
+      await runRetry(fn, { maxAttempts: 3, initialDelayMs: 10 }),
+    ).toBe('success');
+    expect(fn).toHaveBeenCalledTimes(3);
+  });
+
+  it('does not enter the persistent loop for a 429 context overflow', async () => {
+    const fn = vi
+      .fn()
+      .mockRejectedValue(httpError('Context length exceeded', 429));
+    await expect(
+      runRetry(fn, {
+        maxAttempts: 3,
+        initialDelayMs: 10,
+        persistentMode: true,
+      }),
+    ).rejects.toThrow('Context length exceeded');
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('retryWithBackoff - persistent mode', () => {
   useRetryTestEnv();
   const persistent = {
